@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dialer</title>
+<style>
+:root{--bg:#fff;--fg:#000;--sub:#8e8e93;--key:#e9e9eb;--key-a:#c7c7cc;--line:#d1d1d6;--tab:rgba(249,249,249,.94);--blue:#007aff;--green:#34c759;--red:#ff3b30;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--fg:#fff;--key:#333336;--key-a:#6c6c70;--line:#38383a;--tab:rgba(29,29,30,.94)}}
+:root[data-theme="dark"]{--bg:#000;--fg:#fff;--key:#333336;--key-a:#6c6c70;--line:#38383a;--tab:rgba(29,29,30,.94)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Roboto,Arial,sans-serif}
+#app{max-width:430px;margin:0 auto;height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.view{display:none;flex:1;min-height:0;flex-direction:column}
+.view.on{display:flex}
+h1{font-size:34px;font-weight:700;margin:12px 20px 8px;letter-spacing:-.3px}
+.list{overflow-y:auto;flex:1;padding:0 0 8px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:.5px solid var(--line);cursor:pointer}
+.row .t{flex:1;min-width:0}
+.row .n{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n.miss{color:var(--red)}
+.row .s{font-size:14px;color:var(--sub)}
+.row .d{font-size:15px;color:var(--sub)}
+.av{width:40px;height:40px;border-radius:50%;background:linear-gradient(#a5aab5,#848994);color:#fff;display:grid;place-items:center;font-weight:600;font-size:16px;flex:none}
+.empty{color:var(--sub);text-align:center;margin-top:80px}
+/* keypad */
+#display{height:92px;display:flex;align-items:flex-end;justify-content:center;padding:0 24px 6px;font-size:38px;letter-spacing:.5px;white-space:nowrap;overflow:hidden}
+#sub{height:24px;text-align:center;font-size:15px;color:var(--blue);cursor:pointer}
+#pad{display:grid;grid-template-columns:repeat(3,78px);gap:16px 22px;justify-content:center;margin:12px 0 0}
+.k{width:78px;height:78px;border-radius:50%;border:0;background:var(--key);color:var(--fg);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;line-height:1;user-select:none;touch-action:manipulation;transition:background .12s}
+.k:active,.k.p{background:var(--key-a);transition:none}
+.k b{font-size:36px;font-weight:400}
+.k i{font-style:normal;font-size:10px;font-weight:600;letter-spacing:2px;margin-top:3px;height:11px;color:var(--fg)}
+.k b.star{font-size:40px;padding-top:8px}
+#actions{display:grid;grid-template-columns:repeat(3,78px);gap:22px;justify-content:center;margin:16px 0 8px;align-items:center}
+#call{width:78px;height:78px;border-radius:50%;border:0;background:var(--green);display:grid;place-items:center;grid-column:2}
+#call:active{filter:brightness(.85)}
+#del{grid-column:3;background:none;border:0;color:var(--sub);width:78px;height:78px;display:grid;place-items:center;visibility:hidden}
+#del.show{visibility:visible}
+svg{display:block}
+/* tabs */
+nav{display:flex;background:var(--tab);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:.5px solid var(--line);padding:6px 0 4px}
+nav button{flex:1;background:none;border:0;color:var(--sub);font:10px/1.2 inherit;display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0;font-family:inherit}
+nav button.on{color:var(--blue)}
+nav button:focus-visible,.k:focus-visible,#call:focus-visible,.row:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+/* call screen */
+#ring{position:absolute;inset:0;background:linear-gradient(#3a3d46,#15161a);color:#fff;display:none;flex-direction:column;align-items:center;padding:90px 24px 60px;z-index:5}
+#ring.on{display:flex}
+#ring .av{width:96px;height:96px;font-size:40px;margin-bottom:16px}
+#rn{font-size:32px;margin:0 0 6px;text-align:center;word-break:break-all}
+#rs{font-size:18px;opacity:.7}
+#end{margin-top:auto;width:78px;height:78px;border-radius:50%;border:0;background:var(--red);display:grid;place-items:center}
+#end svg{transform:rotate(135deg)}
+</style>
+</head>
+<body>
+<div id="app">
+ <section class="view" id="v-fav"><h1>Favorites</h1><div class="list" id="l-fav"></div></section>
+ <section class="view" id="v-rec"><h1>Recents</h1><div class="list" id="l-rec"></div></section>
+ <section class="view" id="v-con"><h1>Contacts</h1><div class="list" id="l-con"></div></section>
+ <section class="view on" id="v-key">
+  <div style="flex:1"></div>
+  <div id="display" aria-live="polite"></div>
+  <div id="sub"></div>
+  <div id="pad"></div>
+  <div id="actions">
+   <span></span>
+   <button id="call" aria-label="Call"><svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></button>
+   <button id="del" aria-label="Delete"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12z"/><path d="m13 9 4 6m0-6-4 6"/></svg></button>
+  </div>
+ </section>
+ <section class="view" id="v-vm"><h1>Voicemail</h1><div class="empty">No Voicemail</div></section>
+ <nav id="tabs"></nav>
+ <div id="ring"><div class="av" id="ra"></div><h2 id="rn"></h2><div id="rs">calling…</div><button id="end" aria-label="End call"><svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></button></div>
+</div>
+<script>
+var contacts=[{n:"Aarav Mohanty",p:"9437012345",f:1},{n:"Ananya Das",p:"9861098765",f:1},{n:"Biswajit Nayak",p:"9078123456"},{n:"Maa",p:"9437055500",f:1},{n:"Priya Sahoo",p:"7894561230"},{n:"Rohit Patra",p:"8800112233"},{n:"Subham Behera",p:"9337445566",f:1}];
+var recents=[{p:"9437012345",t:"Today",m:0,o:0},{p:"9861098765",t:"Today",m:1,o:0},{p:"7894561230",t:"Yesterday",m:0,o:1},{p:"9437055500",t:"Tuesday",m:0,o:0},{p:"8800112233",t:"Monday",m:1,o:0}];
+var AND=window.Android;
+window.refreshData=function(){if(!AND)return;try{contacts=JSON.parse(AND.getContacts());recents=JSON.parse(AND.getCalls())}catch(e){}lists();render()};
+window.prefill=function(n){num=n;render()};
+if(AND){contacts=[];recents=[]}
+var keys=[["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]];
+var num="",$=function(i){return document.getElementById(i)};
+function find(p){return contacts.filter(function(c){return c.p===p.replace(/\D/g,"").slice(-10)})[0]}
+function fmt(s){var p=s.indexOf("+")===0?"+":"",d=s.replace(/[^\d*#]/g,"");if(/[*#]/.test(d)||d.length>10&&!p)return p+d;
+ if(p&&d.length>2)return p+d.slice(0,2)+" "+d.slice(2).replace(/(\d{5})(\d{0,5})/,"$1 $2").trim();
+ if(d.length>5)return d.replace(/(\d{5})(\d{0,5})/,"$1 $2").trim();return p+d}
+function init(c){return c?c.n.split(" ").map(function(w){return w[0]}).join("").slice(0,2):"#"}
+// audio DTMF
+var ac;function tone(k){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();var r=[697,770,852,941],c=[1209,1336,1477],i="123456789*0#".indexOf(k);if(i<0)return;
+ var g=ac.createGain();g.gain.value=.08;g.connect(ac.destination);[r[Math.floor(i/3)],c[i%3]].forEach(function(f){var o=ac.createOscillator();o.frequency.value=f;o.connect(g);o.start();o.stop(ac.currentTime+.14)})}catch(e){}}
+function render(){var d=$("display");d.textContent=fmt(num);d.style.fontSize=num.length>13?"28px":"38px";$("del").className=num?"show":"";
+ var c=num&&find(num);$("sub").textContent=num&&!c?"Add Number":(c?c.n:"");}
+function add(k){if(num.length<18){num+=k;render()}}
+// pad
+var pad=$("pad");keys.forEach(function(k){var b=document.createElement("button");b.className="k";b.setAttribute("aria-label",k[0]);
+ b.innerHTML="<b"+(k[0]==="*"?' class="star"':"")+">"+k[0]+"</b><i>"+k[1]+"</i>";var t,lp=0;
+ b.addEventListener("pointerdown",function(){b.classList.add("p");tone(k[0]);lp=0;if(k[0]==="0")t=setTimeout(function(){lp=1;num=num.slice(0,-1);add("+")},500)});
+ b.addEventListener("pointerup",function(){b.classList.remove("p");clearTimeout(t)});b.addEventListener("pointerleave",function(){b.classList.remove("p");clearTimeout(t)});
+ b.addEventListener("click",function(){if(lp){lp=0;return}add(k[0])});pad.appendChild(b)});
+var ht;$("del").addEventListener("click",function(){num=num.slice(0,-1);render()});
+$("del").addEventListener("pointerdown",function(){ht=setTimeout(function(){num="";render()},600)});
+$("del").addEventListener("pointerup",function(){clearTimeout(ht)});
+document.addEventListener("keydown",function(e){if($("v-key").className.indexOf("on")<0||$("ring").className.indexOf("on")>0)return;
+ if(/^[0-9*#+]$/.test(e.key)){tone(e.key);add(e.key)}else if(e.key==="Backspace"){num=num.slice(0,-1);render()}else if(e.key==="Enter")dial(num)});
+$("sub").addEventListener("click",function(){if(num&&!find(num)){if(AND){AND.addContact(num);return}var n=prompt("Name for "+fmt(num));if(n){contacts.push({n:n,p:num.replace(/\D/g,"").slice(-10)});lists();render()}}});
+// call
+var tm,sec;function dial(p){if(!p)return;if(AND){AND.call(p.replace(/[^\d+*#]/g,""));return}var c=find(p);$("rn").textContent=c?c.n:fmt(p);$("ra").textContent=init(c);$("rs").textContent="calling…";$("ring").className="on";
+ recents.unshift({p:p.replace(/\D/g,"").slice(-10)||p,t:"Today",m:0,o:1});lists();clearTimeout(tm);sec=0;
+ tm=setTimeout(function(){$("rs").textContent="0:00";tm=setInterval(function(){sec++;$("rs").textContent=Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0")},1000)},1800)}
+$("call").addEventListener("click",function(){if(!num&&recents[0]){num=recents[0].p;render();return}dial(num)});
+$("end").addEventListener("click",function(){clearTimeout(tm);clearInterval(tm);$("ring").className=""});
+// lists
+function row(c,p,sub,miss,right,fn){var r=document.createElement("div");r.className="row";r.tabIndex=0;
+ r.innerHTML='<div class="av">'+init(c)+'</div><div class="t"><div class="n'+(miss?" miss":"")+'"></div><div class="s"></div></div><div class="d"></div>';
+ r.querySelector(".n").textContent=c?c.n:fmt(p);r.querySelector(".s").textContent=sub;r.querySelector(".d").textContent=right||"";
+ r.addEventListener("click",fn);r.addEventListener("keydown",function(e){if(e.key==="Enter")fn()});return r}
+function lists(){["fav","rec","con"].forEach(function(k){$("l-"+k).innerHTML=""});
+ var f=contacts.filter(function(c){return c.f});if(!f.length)$("l-fav").innerHTML='<div class="empty">No Favorites</div>';
+ f.forEach(function(c){$("l-fav").appendChild(row(c,c.p,"mobile","","",function(){dial(c.d||c.p)}))});
+ recents.slice(0,40).forEach(function(r){var c=find(r.p);$("l-rec").appendChild(row(c,r.p,r.o?"outgoing":"mobile",r.m,r.t,function(){dial(r.d||r.p)}))});
+ contacts.slice().sort(function(a,b){return a.n.localeCompare(b.n)}).forEach(function(c){$("l-con").appendChild(row(c,c.p,fmt(c.p),"","",function(){dial(c.d||c.p)}))})}
+// tabs
+var T=[["fav","Favorites","M12 17.3l-5.9 3.4 1.6-6.7L2.5 9.5l6.9-.6L12 2.5l2.6 6.4 6.9.6-5.2 4.5 1.6 6.7z"],["rec","Recents","M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 4v5l3.5 2"],["con","Contacts","M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9c0-4 3.6-6 8-6s8 2 8 6"],["key","Keypad","M5 5h2M11 5h2M17 5h2M5 11h2M11 11h2M17 11h2M5 17h2M11 17h2M17 17h2"],["vm","Voicemail","M7 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm10 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM7 16h10"]];
+T.forEach(function(t){var b=document.createElement("button");b.id="t-"+t[0];b.className=t[0]==="key"?"on":"";
+ b.innerHTML='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(t[0]==="key"?3:1.8)+'" stroke-linecap="round" stroke-linejoin="round"><path d="'+t[2]+'"/></svg>'+t[1];
+ b.addEventListener("click",function(){T.forEach(function(x){$("v-"+x[0]).className="view"+(x[0]===t[0]?" on":"");$("t-"+x[0]).className=x[0]===t[0]?"on":""})});$("tabs").appendChild(b)});
+lists();render();
+</script>
+</body>
+</html>
